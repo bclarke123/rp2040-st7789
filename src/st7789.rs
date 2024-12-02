@@ -170,33 +170,30 @@ impl<K, L, M, N, P, S, D, V> ST7789Display<K, L, M, N, P, S, D, V>
     /// It will be called automatically when created.
     /// It is usually called before `soft_reset`.
     pub fn hard_reset(&mut self, delay: &mut Delay) {
-        if self.reset_pin.is_none() {
-            return;
-        }
-        self.cs_pin.set(false);
-        self.reset_pin.set(true);
+        self.cs_pin.set_low().unwrap();
+        self.reset_pin.set_high().unwrap();
         delay.delay_ms(50);
-        self.reset_pin.set(false);
+        self.reset_pin.set_low().unwrap();
         delay.delay_ms(50);
-        self.reset_pin.set(true);
+        self.reset_pin.set_high().unwrap();
         delay.delay_ms(150);
-        self.cs_pin.set(true);
+        self.cs_pin.set_high().unwrap();
     }
 
     /// Write Spi command to the display.
     pub fn send_command(&mut self, command: Command) {
-        self.cs_pin.set(false);
+        self.cs_pin.set_low().unwrap();
         self.dc_pin.set_low().unwrap();
         self.spi.write(&[command as u8]).unwrap();
-        self.cs_pin.set(true);
+        self.cs_pin.set_high().unwrap();
     }
 
     /// Write Spi data to the display.
     pub fn send_data(&mut self, data: &[u8]) {
-        self.cs_pin.set(false);
+        self.cs_pin.set_low().unwrap();
         self.dc_pin.set_high().unwrap();
         self.spi.write(data).unwrap();
-        self.cs_pin.set(true);
+        self.cs_pin.set_high().unwrap();
     }
 
     /// Reset by sending a software reset command.
