@@ -1,14 +1,12 @@
 use core::mem;
 use core::ops::BitOr;
 
-use rp_pico::hal as hal;
+use embedded_hal::digital::OutputPin;
+use rp2040_hal as hal;
+use hal::gpio::{Pin, PinId, PullType, FunctionSio, SioOutput};
+use hal::spi::{Enabled, SpiDevice, State, ValidSpiPinout};
 
 use cortex_m::delay::Delay;
-use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::prelude::_embedded_hal_blocking_spi_Write;
-use hal::gpio::{Pin, PinId, PushPullOutput};
-use hal::spi::{Enabled, SpiDevice};
-use hal::typelevel::NoneT;
 use crate::font::Font;
 
 #[repr(u8)]
@@ -84,53 +82,27 @@ fn abs(x: i16) -> i16 {
     }
 }
 
-/// OptionalOutputPin is used to implement some optional output pins.
-pub trait OptionalOutputPin {
-    /// Set the output pin to the specified value.
-    fn set(&mut self, value: bool);
-    /// Return whether the output pin is none.
-    fn is_none(&self) -> bool;
-}
-
-impl<L: PinId> OptionalOutputPin for Pin<L, PushPullOutput> {
-    fn set(&mut self, value: bool) {
-        if value {
-            self.set_high().unwrap();
-        } else {
-            self.set_low().unwrap();
-        }
-    }
-
-    fn is_none(&self) -> bool {
-        false
-    }
-}
-
-impl OptionalOutputPin for NoneT {
-    fn set(&mut self, _: bool) {}
-    fn is_none(&self) -> bool {
-        true
-    }
-}
-
 /// The ST7789 display driver.
 pub struct ST7789Display<
-    K: OptionalOutputPin,
+    K: PinId,
     L: PinId,
-    M: OptionalOutputPin,
-    N: OptionalOutputPin,
-    S: SpiDevice
+    M: PinId,
+    N: PinId,
+    P: PullType,
+    S: State,
+    D: SpiDevice,
+    V: ValidSpiPinout<D>
 > {
     /// Reset
-    reset_pin: K,
+    reset_pin: Pin<K, FunctionSio<SioOutput>, P>,
     /// Data/Command
-    dc_pin: Pin<L, PushPullOutput>,
+    dc_pin: Pin<L, FunctionSio<SioOutput>, P>,
     /// Chip select
-    cs_pin: M,
+    cs_pin: Pin<M, FunctionSio<SioOutput>, P>,
     /// Backlight
-    bl_pin: N,
+    bl_pin: Pin<N, FunctionSio<SioOutput>, P>,
     /// SPI
-    spi: hal::spi::Spi<Enabled, S, 8>,
+    spi: hal::spi::Spi<S, D, V, 8>,
     /// the width of the display in pixels
     width: u16,
     /// the height of the display in pixels
@@ -140,19 +112,27 @@ pub struct ST7789Display<
 const BUFFER_SIZE: u16 = 512;
 
 #[allow(dead_code)]
-impl<K: OptionalOutputPin, L: PinId, M: OptionalOutputPin, N: OptionalOutputPin, S: SpiDevice> ST7789Display<K, L, M, N, S> {
+impl<K, L, M, N, P, S, D, V> ST7789Display<K, L, M, N, P, S, D, V>
+    where K: PinId,
+    L: PinId,
+    M: PinId,
+    N: PinId,
+    P: PullType,
+    S: State,
+    D: SpiDevice,
+    V: ValidSpiPinout<D> {
     /// Creates a new display driver.
     pub fn new(
         // Reset
-        reset_pin: K,
+        reset_pin: Pin<K, FunctionSio<SioOutput>, P>,
         // Data/Command
-        dc_pin: Pin<L, PushPullOutput>,
+        dc_pin: Pin<L, FunctionSio<SioOutput>, P>,
         // Chip select
-        cs_pin: M,
+        cs_pin: Pin<M, FunctionSio<SioOutput>, P>,
         // Backlight
-        bl_pin: N,
+        bl_pin: Pin<N, FunctionSio<SioOutput>, P>,
         // SPI
-        spi: hal::spi::Spi<Enabled, S, 8>,
+        spi: hal::spi::Spi<S, D, V, 8>,
         width: u16,
         height: u16,
         rotation: Rotation,
@@ -179,7 +159,7 @@ impl<K: OptionalOutputPin, L: PinId, M: OptionalOutputPin, N: OptionalOutputPin,
         delay.delay_ms(10);
         i.send_command(Command::Noron);
         delay.delay_ms(10);
-        i.bl_pin.set(true);
+        i.bl_pin.set_high();
         i.fill(0);
         i.send_command(Command::Dispon);
         delay.delay_ms(500);
